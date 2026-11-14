@@ -149,6 +149,18 @@ class TestSqlite < TepTest
       out
     end
 
+    get '/big_rowid' do
+      db = Tep::SQLite.new
+      db.open("#{TMP_DB}")
+      db.exec("CREATE TABLE IF NOT EXISTS big (id INTEGER PRIMARY KEY, v TEXT)")
+      db.exec("DELETE FROM big")
+      db.exec("INSERT INTO big (id, v) VALUES (5000000000, 'a')")
+      db.exec("INSERT INTO big (v) VALUES ('b')")
+      id = db.last_rowid
+      db.close
+      "id=" + id.to_s
+    end
+
   RB
 
   Minitest.after_run do
@@ -209,6 +221,10 @@ class TestSqlite < TepTest
 
     res2 = get("/note/#{inserted_id}")
     assert_match(/body=via-test/, res2.body)
+  end
+
+  def test_last_rowid_past_32_bits
+    assert_equal "id=5000000001", get("/big_rowid").body.strip
   end
 
   def test_bind_and_col_int_round_trip_64bit
