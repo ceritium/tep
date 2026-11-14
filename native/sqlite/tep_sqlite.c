@@ -14,8 +14,9 @@
  *     statement that returns no rows (CREATE / INSERT / UPDATE /
  *     DELETE / PRAGMA). No bind in this form; for parameterised
  *     writes use prepare + bind + step + finalize.
- *   - `prepare(h, sql)` / `bind_{str,int}(h, idx, v)` / `step(h)` /
- *     `col_{str,int}(h, idx)` / `col_count(h)` / `finalize(h)`
+ *   - `prepare(h, sql)` / `bind_{str,int}(h, idx, v)` /
+ *     `bind_null(h, idx)` / `step(h)` / `col_{str,int,null}(h, idx)` /
+ *     `col_count(h)` / `finalize(h)`
  *                                                    -- one cursor
  *     and one prepared-statement cache per handle. Handles are
  *     independent, so threads that each open their own handle can
@@ -27,8 +28,7 @@
  * -----------------
  *   - Multi-cursor on one handle: nested queries (open one cursor,
  *     iterate, run another query inside) need a second handle.
- *   - Blob / NULL columns: col_str returns "" for NULL, callers
- *     can't distinguish empty-string from NULL.
+ *   - Blob columns. NULL reads as "" / 0; col_null tells it apart.
  *   - Transactions: works via `exec("BEGIN")` / `exec("COMMIT")`.
  *
  * Errors
@@ -203,6 +203,12 @@ int tep_sqlite_bind_int(int h, int idx, long value) {
     return sqlite3_bind_int64(hd->stmt, idx, (sqlite3_int64)value) == SQLITE_OK ? 0 : -1;
 }
 
+int tep_sqlite_bind_null(int h, int idx) {
+    tep_sqlite_handle *hd = tep_sqlite_get(h);
+    if (!hd || !hd->stmt) return -1;
+    return sqlite3_bind_null(hd->stmt, idx) == SQLITE_OK ? 0 : -1;
+}
+
 /* 1 -> row available, 0 -> done (no more rows), -1 -> error */
 int tep_sqlite_step(int h) {
     tep_sqlite_handle *hd = tep_sqlite_get(h);
@@ -228,6 +234,12 @@ long tep_sqlite_col_int(int h, int idx) {
     tep_sqlite_handle *hd = tep_sqlite_get(h);
     if (!hd || !hd->stmt) return 0;
     return (long)sqlite3_column_int64(hd->stmt, idx);
+}
+
+int tep_sqlite_col_null(int h, int idx) {
+    tep_sqlite_handle *hd = tep_sqlite_get(h);
+    if (!hd || !hd->stmt) return 1;
+    return sqlite3_column_type(hd->stmt, idx) == SQLITE_NULL;
 }
 
 int tep_sqlite_col_count(int h) {
