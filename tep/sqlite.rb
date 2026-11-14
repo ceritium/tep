@@ -65,9 +65,11 @@ module Sqlite
   # holds the full range. `:long` still maps to the `int` Spinel token,
   # so callers see an Integer exactly as before.
   ffi_func :tep_sqlite_bind_int,          [:int, :int, :long], :int
+  ffi_func :tep_sqlite_bind_null,         [:int, :int],    :int
   ffi_func :tep_sqlite_step,              [:int],          :int, blocking: true
   ffi_func :tep_sqlite_col_str,           [:int, :int],    :str
   ffi_func :tep_sqlite_col_int,           [:int, :int],    :long
+  ffi_func :tep_sqlite_col_null,          [:int, :int],    :int
   ffi_func :tep_sqlite_col_count,         [:int],          :int
   ffi_func :tep_sqlite_finalize,          [:int],          :int
   ffi_func :tep_sqlite_reset,             [:int],          :int
@@ -156,11 +158,13 @@ module Tep
 
     def bind_str(idx, value); Sqlite.tep_sqlite_bind_str(@dbh, idx, value); end
     def bind_int(idx, value); Sqlite.tep_sqlite_bind_int(@dbh, idx, value); end
+    def bind_null(idx);       Sqlite.tep_sqlite_bind_null(@dbh, idx);       end
 
     # 1 -> row available, 0 -> done (no more rows), -1 -> error.
     def step;       Sqlite.tep_sqlite_step(@dbh);       end
     def col_str(i); Sqlite.tep_sqlite_col_str(@dbh, i); end
     def col_int(i); Sqlite.tep_sqlite_col_int(@dbh, i); end
+    def col_null?(i); Sqlite.tep_sqlite_col_null(@dbh, i) == 1; end
     def col_count;  Sqlite.tep_sqlite_col_count(@dbh);  end
     def finalize;   Sqlite.tep_sqlite_finalize(@dbh);   end
     def reset;      Sqlite.tep_sqlite_reset(@dbh);      end
