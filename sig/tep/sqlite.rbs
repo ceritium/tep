@@ -25,13 +25,16 @@ module Tep
     # 1-indexed bind slot (matches sqlite3 convention).
     def bind_str: (Integer idx, String value) -> Integer
     def bind_int: (Integer idx, Integer value) -> Integer
+    def bind_null: (Integer idx) -> Integer
 
     # Cursor stepping. 1 = row available, 0 = done, -1 = error.
     def step: () -> Integer
 
-    # Column readers (0-indexed). NULL columns return "" / 0.
+    # Column readers (0-indexed). NULL columns return "" / 0; col_null?
+    # tells them apart.
     def col_str: (Integer i) -> String
     def col_int: (Integer i) -> Integer
+    def col_null?: (Integer i) -> bool
     def col_count: () -> Integer
 
     def finalize: () -> Integer
