@@ -1,0 +1,9 @@
+module Tep
+  class UploadedFile
+    def initialize: (String filename, String type, String contents) -> void
+    def filename: () -> String
+    def type: () -> String
+    def read: () -> String
+    def size: () -> Integer
+  end
+end
