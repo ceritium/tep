@@ -236,6 +236,7 @@ module Tep
           Tep::Server::Scheduled.send_simple(client, 400, "bad request")
           return false
         end
+        req.remote_host = Sock.sphttp_peer_ip(client)
 
         req.consume_body_via_scheduler(client)
         # A shutdown wake may stop an incomplete body read. Do not dispatch
