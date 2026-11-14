@@ -35,6 +35,7 @@ module Tep
 
     def initialize: () -> void
     def set_passed: () -> bool
+    def files: () -> Hash[String, Tep::UploadedFile]
 
     # Aliases / shortcuts.
     def headers: () -> Hash[String, String]
