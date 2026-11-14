@@ -85,6 +85,15 @@ def self.locate_spinel
 end
 SPINEL = locate_spinel
 
+def spinel_package?(feature)
+  bin = if SPINEL.include?(File::SEPARATOR) then SPINEL
+        else ENV.fetch("PATH", "").split(File::PATH_SEPARATOR).map { |d| File.join(d, SPINEL) }.find { |p| File.executable?(p) }
+        end
+  return false unless bin && File.exist?(bin)
+  roots = [File.dirname(bin), File.dirname(File.dirname(File.realpath(bin)))]
+  roots.any? { |r| File.directory?(File.join(r, "packages", feature.split("/").first)) }
+end
+
 DSL_VERBS = %w[get post put patch delete options head]
 HOOK_NAMES = %w[before after not_found]
 WS_EVENTS  = %w[on_open on_message on_close on_ping on_pong on_error]
@@ -1510,6 +1519,12 @@ def handle_top_call(node, routes, websockets, mcp_tools, mcp_resources, filters,
         passthrough << "# --- inlined dependency require #{rel.inspect} (spinel_kit) ---"
         passthrough << inline_require_relative_tree(skpath, inlined_seen, warnings)
       end
+      return
+    end
+    # Packages bundled with spinel (securerandom, json, ...) need their
+    # require under strict require, and spinel resolves them itself.
+    if name == "require" && sk_arg.is_a?(Prism::StringNode) && spinel_package?(sk_arg.unescaped)
+      passthrough << node.location.slice
       return
     end
     # tep's own library is inlined wholesale (see inlined_tep_library), so
