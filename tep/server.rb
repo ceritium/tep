@@ -179,6 +179,7 @@ module Tep
           send_simple(client, 400, "bad request")
           break
         end
+        req.remote_host = Sock.sphttp_peer_ip(client)
 
         req.consume_body(client)
         # A term signal cuts the body drain short; don't hand the

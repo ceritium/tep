@@ -459,6 +459,22 @@ int sphttp_set_blocking(int fd) {
     return fcntl(fd, F_SETFL, flags & ~O_NONBLOCK);
 }
 
+/* The peer's numeric address, "" if unknown. Thread-local so threads
+ * serving connections don't share it; Spinel copies :str results. */
+const char *sphttp_peer_ip(int fd) {
+    static _Thread_local char ip[INET6_ADDRSTRLEN];
+    struct sockaddr_storage ss;
+    socklen_t len = sizeof(ss);
+    ip[0] = '\0';
+    if (getpeername(fd, (struct sockaddr *)&ss, &len) != 0) return ip;
+    if (ss.ss_family == AF_INET) {
+        if (!inet_ntop(AF_INET, &((struct sockaddr_in *)&ss)->sin_addr, ip, sizeof(ip))) ip[0] = '\0';
+    } else if (ss.ss_family == AF_INET6) {
+        if (!inet_ntop(AF_INET6, &((struct sockaddr_in6 *)&ss)->sin6_addr, ip, sizeof(ip))) ip[0] = '\0';
+    }
+    return ip;
+}
+
 /* Bound a blocking recv with SO_RCVTIMEO (milliseconds; <=0 clears the
  * timeout). Used by the pooled outbound client (6.7b): a keep-alive
  * response with no Content-Length and no Connection: close (e.g. a

@@ -96,6 +96,9 @@ module Tep
     # can land cleanly, so it's deferred.
 
     def host;          @req_headers["host"];        end
+    # The connection's peer address. Behind a proxy that's the proxy:
+    # X-Forwarded-For isn't trusted here.
+    def ip;            @remote_host;                end
     def user_agent;    @req_headers["user-agent"];  end
     def referer;       @req_headers["referer"];     end
     def referrer;      @req_headers["referer"];     end   # spelling alias
