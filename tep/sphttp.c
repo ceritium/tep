@@ -36,8 +36,14 @@
  * the `:binstr` return mode must publish the exact byte count here;
  * Spinel's call site then builds the Ruby String from sp_ffi_bin_len
  * bytes instead of strlen, so payloads containing 0x00 survive.
- * Defined in Spinel's libsp_alloc.c; the symbol is in every binary. */
+ * Defined in Spinel's libsp_alloc.c; the symbol is in every binary.
+ * Thread-local in Spinel's threaded runtime, which links sphttp_mt.o,
+ * this file built with -DSP_THREADS. */
+#ifdef SP_THREADS
+extern _Thread_local int sp_ffi_bin_len;
+#else
 extern int sp_ffi_bin_len;
+#endif
 
 /* ---------- TLS (libssl) binding -- outbound client; see tep#148 ----------
  *
@@ -444,6 +450,14 @@ int sphttp_poll_add(int fd, int mode_bits) { return sp_net_poll_add(fd, mode_bit
 int sphttp_poll_run(int timeout_ms)        { return sp_net_poll_run(timeout_ms); }
 int sphttp_poll_ready(int slot)            { return sp_net_poll_ready(slot); }
 int sphttp_set_nonblock(int fd)            { return sp_net_set_nonblock(fd); }
+
+/* Spinel's threaded runtime hands accept()ed fds over non-blocking; the
+ * prefork server reads and writes them as blocking. */
+int sphttp_set_blocking(int fd) {
+    int flags = fcntl(fd, F_GETFL, 0);
+    if (flags < 0) return -1;
+    return fcntl(fd, F_SETFL, flags & ~O_NONBLOCK);
+}
 
 /* Bound a blocking recv with SO_RCVTIMEO (milliseconds; <=0 clears the
  * timeout). Used by the pooled outbound client (6.7b): a keep-alive
