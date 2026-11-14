@@ -38,6 +38,8 @@ module Tep
   end
 
   class Server
+    KEEPALIVE_TIMEOUT_MS = 5000
+
     attr_accessor :app
 
     def initialize(app)
@@ -162,6 +164,9 @@ module Tep
     def handle_connection(client)
       keep_going = true
       while keep_going
+        # A worker serves one connection at a time: bound the wait for the
+        # next keep-alive request so an idle client can't hold it.
+        Sock.sphttp_set_recv_timeout(client, KEEPALIVE_TIMEOUT_MS)
         n = Sock.sphttp_read_request(client)
         if n <= 0
           break

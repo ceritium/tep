@@ -160,7 +160,9 @@ int sphttp_read_request(int fd) {
             break;
         }
         if (n < 0) {
-            if (!ssl && errno == EINTR) continue;
+            /* A term signal interrupts recv (no SA_RESTART): stop waiting
+             * on an idle keep-alive client so the worker can exit. */
+            if (!ssl && errno == EINTR && !sp_net_shutdown_requested()) continue;
             return -1;
         }
         sphttp_req_len += (int)n;
@@ -195,7 +197,7 @@ const char *sphttp_drain_body(int fd, int total_len) {
         ssize_t r = ssl ? (ssize_t)SSL_read(ssl, sphttp_body_buf + got, n - got)
                         : recv(fd, sphttp_body_buf + got, n - got, 0);
         if (r <= 0) {
-            if (!ssl && errno == EINTR) continue;
+            if (!ssl && errno == EINTR && !sp_net_shutdown_requested()) continue;
             break;
         }
         got += (int)r;
