@@ -75,7 +75,7 @@ shape, lowered by the `websocket '/p' do |ws| ... end` DSL hook).
 | **`pass`** / **`pass if cond`**       | ✅ 3    | `req.passed` flag; dispatcher walks to next matching route or 404s |
 | **Multiple `before` / `after`**       | ✅ 2    | Translator merges N blocks into one composite Filter subclass |
 | **Optional path segments `(/:foo)`**  | ✅ 5    | Translator expands to the Cartesian product of include/skip; up to N optionals |
-| **Rack::Request-style methods**       | ✅ 6    | `.host`, `.user_agent`, `.referer`/`.referrer`, `.accept`, `.content_type`, `.scheme`/`.ssl?` (via `X-Forwarded-Proto`) |
+| **Rack::Request-style methods**       | ✅ 6    | `.host`, `.ip` (the peer address), `.user_agent`, `.referer`/`.referrer`, `.accept`, `.content_type`, `.scheme`/`.ssl?` (via `X-Forwarded-Proto`) |
 | **WebSocket** (`websocket '/p' do \|ws\|`) | ✅ 11   | RFC 6455 server-side. `on_open` / `on_message` / `on_close` / `on_ping` / `on_pong` / `on_error` block events; `ws.text` / `ws.binary` / `ws.ping` / `ws.pong` / `ws.close(code, reason)` writers. Each `on_X` block has access to `req` (the upgrade-time `Tep::Request` — same `req.identity`, `req.session`, headers as a normal route) plus `ws` (the Driver). 10 codec/handshake unit tests + 1 end-to-end echo round-trip (raw-socket RFC 6455 handshake + masked TEXT → unmasked echo). Requires `set :scheduler, :scheduled` (recv loop parks on `Tep::Scheduler.io_wait`); the blocking server returns 501. Text payload paths are NUL-safe via a C-side send accumulator (`sphttp_send_append_byte` / `_flush`) since spinel Ruby Strings are NUL-bound at the value level; full binary payloads with embedded `0x00` are a follow-up. |
 
 ## Phase B — Real-world apps
@@ -110,7 +110,6 @@ shape, lowered by the `websocket '/p' do |ws| ... end` DSL hook).
 |------------------------|--------|---|
 | Haml / Slim / etc.     | n/a    | Out of scope -- those are CRuby gems |
 | `helpers do ... end`   | medium | Closures not first-class in spinel; would need translator-level "extract methods to Handler base" pass |
-| `request.ip` / `request.remote_ip` | medium | Needs an sphttp_accept variant that returns the peer addr from the kernel; the rest of Rack::Request lands without C changes |
 
 ## Showcases
 
