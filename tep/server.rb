@@ -138,6 +138,7 @@ module Tep
           end
           next
         end
+        Sock.sphttp_set_blocking(client)
         # Bound every blocking read on this connection. Without it a
         # client that connects and goes quiet -- an idle keep-alive
         # browser tab, a port probe, a slowloris, a plain-HTTP client
