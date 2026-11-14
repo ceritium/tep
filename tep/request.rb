@@ -29,6 +29,7 @@ module Tep
       @session      = Session.new    # signed cookie store
       @raw_body     = ""             # same reasoning as req_headers
       @remote_host  = ""
+      @upload_files = Tep::Multipart.parse_files("", "")   # typed empty hash
       @passed       = false          # `pass` flag: skip to the next matching route
       @ivars        = Tep.str_hash   # per-request bag for `@name = ...`
                                      # set by handlers and `before` filters,
@@ -42,6 +43,9 @@ module Tep
 
     attr_accessor :passed
     def set_passed; @passed = true; end
+
+    # File parts of a multipart body by field name (Tep::UploadedFile).
+    def files; @upload_files; end
 
     # Sinatra-compat read aliases. Writers stay on the renamed slots
     # (req_headers, raw_body) -- a `req.headers["X"] = v` from user
@@ -141,9 +145,12 @@ module Tep
     def consume_body(client_fd)
       cl = content_length
       already = @raw_body.bytesize
-      if cl > already
+      # drain_body returns at most one buffer (64 KiB) per call.
+      while cl > already
         rest = Sock.sphttp_drain_body(client_fd, cl - already)
+        break if rest.bytesize == 0
         @raw_body = @raw_body + rest
+        already = @raw_body.bytesize
       end
       parse_form_body
       0
@@ -200,6 +207,7 @@ module Tep
         Tep::Multipart.parse(@raw_body, @req_headers["content-type"]).each do |k, v|
           @params[k] = v
         end
+        @upload_files = Tep::Multipart.parse_files(@raw_body, @req_headers["content-type"])
       end
       0
     end
