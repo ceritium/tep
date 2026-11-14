@@ -112,6 +112,7 @@ module Tep
           end
           next
         end
+        Sock.sphttp_set_blocking(client)
         # Inbound TLS: complete the server-side handshake on the freshly
         # accepted fd before reading the request. Bound the handshake
         # with a recv timeout first -- otherwise a connection that opens
