@@ -2172,9 +2172,10 @@ def resolve_ext_o(entry, entries, env_var)
     return o if File.exist?(o)
   end
   prebuilt = File.expand_path(entry["source"].sub(/\.c\z/, ".o"), REPO_ROOT)
-  return prebuilt if File.exist?(prebuilt)
-
   src = File.expand_path(entry["source"], REPO_ROOT)
+  # A prebuilt object older than its source would link stale code.
+  return prebuilt if File.exist?(prebuilt) && (!File.exist?(src) || File.mtime(prebuilt) >= File.mtime(src))
+
   fatal("ext source missing: #{entry["source"]}") unless File.exist?(src)
 
   # own cflags + any same-name sibling's pkg_config include path (the split
