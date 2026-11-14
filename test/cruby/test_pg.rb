@@ -243,6 +243,16 @@ class TestPg < TepTest
       "val=" + out
     end
 
+    get '/long_value' do
+      c = PG.connect(PG_URL)
+      big = "x" * 300000
+      r = c.exec_params("SELECT $1::text || $2::text", [big, big])
+      out = r.getvalue(0, 0)
+      r.clear
+      c.close
+      "length=" + out.length.to_s
+    end
+
     # GET /escape_literal -- in case anyone DOES need to interpolate.
     get '/escape_literal' do
       c = PG.connect(PG_URL)
@@ -588,6 +598,10 @@ class TestPg < TepTest
   def test_exec_params_quoted_string_round_trip
     res = get("/quote_string")
     assert_equal "val=O'Brien", res.body
+  end
+
+  def test_long_params_and_values_come_back_whole
+    assert_equal "length=600000", get("/long_value").body
   end
 
   def test_exec_params_int_round_trip
