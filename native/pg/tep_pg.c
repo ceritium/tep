@@ -24,7 +24,6 @@
 #define TEP_PG_MAX_CONNS         8
 #define TEP_PG_MAX_RESULTS       64
 #define TEP_PG_MAX_PARAMS        32
-#define TEP_PG_PARAM_BUFSIZE     262144   /* 256 KiB; AR migrations push big DDL params */
 #define TEP_PG_STR_BUFSIZE       65536
 #define TEP_PG_STR_BUF_SLOTS     128
 
@@ -44,8 +43,7 @@ static char tep_pg_last_connect_err[TEP_PG_LAST_CONNECT_ERR_SIZE] = {0};
 /* Parameter accumulator for exec_params. */
 static const char *tep_pg_param_ptrs[TEP_PG_MAX_PARAMS];
 static int         tep_pg_param_is_null[TEP_PG_MAX_PARAMS];
-static char        tep_pg_param_buf[TEP_PG_PARAM_BUFSIZE];
-static int         tep_pg_param_buf_used = 0;
+static char       *tep_pg_param_bufs[TEP_PG_MAX_PARAMS];
 static int         tep_pg_param_count    = 0;
 
 /* Rotating return-string buffer. */
@@ -249,8 +247,9 @@ int tep_pg_exec(int h, const char *sql) {
 
 int tep_pg_param_clear(void) {
     tep_pg_param_count = 0;
-    tep_pg_param_buf_used = 0;
     for (int i = 0; i < TEP_PG_MAX_PARAMS; i++) {
+        free(tep_pg_param_bufs[i]);
+        tep_pg_param_bufs[i] = NULL;
         tep_pg_param_ptrs[i] = NULL;
         tep_pg_param_is_null[i] = 0;
     }
@@ -260,11 +259,10 @@ int tep_pg_param_clear(void) {
 int tep_pg_param_push_str(const char *s) {
     if (tep_pg_param_count >= TEP_PG_MAX_PARAMS) return -1;
     if (s == NULL) s = "";
-    size_t n = strlen(s) + 1; /* include NUL terminator */
-    if ((size_t)tep_pg_param_buf_used + n > TEP_PG_PARAM_BUFSIZE) return -1;
-    char *dst = tep_pg_param_buf + tep_pg_param_buf_used;
-    memcpy(dst, s, n);
-    tep_pg_param_buf_used += (int)n;
+    /* Copied: the caller's string only lives for this call. */
+    char *dst = strdup(s);
+    if (dst == NULL) return -1;
+    tep_pg_param_bufs[tep_pg_param_count] = dst;
     tep_pg_param_ptrs[tep_pg_param_count] = dst;
     tep_pg_param_is_null[tep_pg_param_count] = 0;
     tep_pg_param_count++;
@@ -383,10 +381,12 @@ int tep_pg_fmod(int rh, int col) {
     return r ? PQfmod(r, col) : -1;
 }
 
+/* Returned as is: Spinel copies a `:str` result on return, and the
+ * PGresult outlives the call, so values of any length come back whole. */
 const char *tep_pg_getvalue(int rh, int row, int col) {
     PGresult *r = tep_pg_result_for(rh);
-    if (r == NULL) return tep_pg_return_str("");
-    return tep_pg_return_str(PQgetvalue(r, row, col));
+    if (r == NULL) return "";
+    return PQgetvalue(r, row, col);
 }
 
 int tep_pg_getisnull(int rh, int row, int col) {
