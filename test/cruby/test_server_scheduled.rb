@@ -124,6 +124,23 @@ class TestServerScheduled < TepTest
       "scheduler kept #{slots} slots after 60 churned connections"
   end
 
+  # Connections that all arrive before any of them is served: the accept
+  # loop takes several in a row, and each must keep its own fd. The
+  # server is stopped while they queue up so they arrive together.
+  def test_burst_of_simultaneous_connections_all_answered
+    pid = TepHarness.find_by_port(@port)[:pid]
+    Process.kill("STOP", pid)
+    socks = 30.times.map { TCPSocket.new("127.0.0.1", @port) }
+    Process.kill("CONT", pid)
+    socks.each_with_index { |s, i| s.write("GET /echo/c#{i} HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n") }
+    bodies = socks.map do |s|
+      s.wait_readable(3) ? s.read.split("\r\n\r\n", 2).last.to_s.strip : "timeout"
+    ensure
+      s.close
+    end
+    assert_equal 30.times.map { |i| "c#{i}" }, bodies
+  end
+
   def test_large_response_to_slow_reader_arrives_in_full
     sock = Socket.new(:INET, :STREAM)
     sock.setsockopt(:SOCKET, :RCVBUF, 65536)   # keep the kernel from absorbing it all
