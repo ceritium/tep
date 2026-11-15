@@ -243,10 +243,10 @@ int tep_sqlite_finalize(int h) {
     return 0;
 }
 
-int tep_sqlite_last_insert_rowid(int h) {
+long tep_sqlite_last_insert_rowid(int h) {
     tep_sqlite_handle *hd = tep_sqlite_get(h);
     if (!hd) return -1;
-    return (int)sqlite3_last_insert_rowid(hd->db);
+    return (long)sqlite3_last_insert_rowid(hd->db);
 }
 
 /* Reset the current statement so it can be re-stepped with new binds. */

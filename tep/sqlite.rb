@@ -71,7 +71,7 @@ module Sqlite
   ffi_func :tep_sqlite_col_count,         [:int],          :int
   ffi_func :tep_sqlite_finalize,          [:int],          :int
   ffi_func :tep_sqlite_reset,             [:int],          :int
-  ffi_func :tep_sqlite_last_insert_rowid, [:int],          :int
+  ffi_func :tep_sqlite_last_insert_rowid, [:int],          :long
 end
 
 module Tep
