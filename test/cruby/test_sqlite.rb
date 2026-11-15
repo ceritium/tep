@@ -124,6 +124,31 @@ class TestSqlite < TepTest
       "length=" + body.length.to_s
     end
 
+    get '/nulls' do
+      db = Tep::SQLite.new
+      db.open("#{TMP_DB}")
+      db.exec("CREATE TABLE IF NOT EXISTS opt (s TEXT, n INTEGER)")
+      db.exec("DELETE FROM opt")
+      db.prepare("INSERT INTO opt (s, n) VALUES (?, ?)")
+      db.bind_null(1)
+      db.bind_null(2)
+      db.step
+      db.finalize
+      db.prepare("INSERT INTO opt (s, n) VALUES (?, ?)")
+      db.bind_str(1, "")
+      db.bind_int(2, 0)
+      db.step
+      db.finalize
+      out = ""
+      db.prepare("SELECT s, n FROM opt ORDER BY rowid")
+      while db.step == 1
+        out = out + db.col_null?(0).to_s + "," + db.col_null?(1).to_s + ";"
+      end
+      db.finalize
+      db.close
+      out
+    end
+
   RB
 
   Minitest.after_run do
@@ -133,6 +158,10 @@ class TestSqlite < TepTest
   def test_two_handles_keep_separate_cursors
     res = get("/two_handles")
     assert_equal "1=first note;2=second note;3=third note;", res.body.strip
+  end
+
+  def test_null_binds_and_reads_apart_from_empty
+    assert_equal "true,true;false,false;", get("/nulls").body.strip
   end
 
   def test_long_text_is_not_truncated
