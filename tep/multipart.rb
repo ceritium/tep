@@ -4,10 +4,8 @@
 # carrying file inputs) use `Content-Type: multipart/form-data`
 # instead of urlencoded. tep's request layer treats those bodies
 # as String fields here. File-upload parts (any part with a
-# `filename=` header) are skipped in v1 -- the field's bytes
-# don't land in `req.params`. Supporting file uploads needs a
-# different surface (likely `req.files`) plus an NUL-safe byte
-# array, both follow-ups.
+# `filename=` header) don't land in `req.params`: parse_files
+# returns them as Tep::UploadedFile, reached as `req.files`.
 #
 # Public API mirrors SpinelKit::Url.parse_query: pass the raw body + the
 # request's Content-Type header value; get back a string-keyed
@@ -55,6 +53,71 @@ module Tep
         i += 1
       end
       h
+    end
+
+    # The file parts of `body` (those with a `filename=`), by field name.
+    def self.parse_files(body, content_type)
+      files = { "" => Tep::UploadedFile.new("", "", "") }
+      files.delete("")
+      bnd = Tep::Multipart.extract_boundary(content_type)
+      if bnd.length == 0
+        return files
+      end
+      parts = body.split("--" + bnd)
+      i = 1
+      while i < parts.length
+        part = parts[i]
+        if part.length >= 2 && part[0, 2] == "--"
+          return files
+        end
+        if part.length >= 2 && part[0, 2] == "\r\n"
+          part = part[2, part.length - 2]
+        end
+        if part.length >= 2 && part[part.length - 2, 2] == "\r\n"
+          part = part[0, part.length - 2]
+        end
+        sep = Tep.str_find(part, "\r\n\r\n", 0)
+        if sep >= 0
+          headers = part[0, sep]
+          name = Tep::Multipart.extract_field_name(headers)
+          if name.length > 0 && Tep.str_find(headers, "filename=", 0) >= 0
+            files[name] = Tep::UploadedFile.new(Tep::Multipart.extract_quoted(headers, "filename=\""),
+                                                Tep::Multipart.extract_part_type(headers),
+                                                part[sep + 4, part.length - sep - 4])
+          end
+        end
+        i += 1
+      end
+      files
+    end
+
+    # The value of `key"..."` in a part's headers, "" when absent.
+    def self.extract_quoted(headers, key)
+      at = Tep.str_find(headers, key, 0)
+      if at < 0
+        return ""
+      end
+      start = at + key.length
+      end_q = Tep.str_find(headers, "\"", start)
+      if end_q < 0
+        return ""
+      end
+      headers[start, end_q - start]
+    end
+
+    # A part's own Content-Type, "application/octet-stream" when absent.
+    def self.extract_part_type(headers)
+      lower = headers.downcase
+      at = Tep.str_find(lower, "content-type:", 0)
+      if at < 0
+        return "application/octet-stream"
+      end
+      start = at + 13
+      stop = Tep.str_find(headers, "\r\n", start)
+      if stop < 0
+        stop = headers.length
+      end
+      headers[start, stop - start].strip
     end
 
     # Extract `boundary=...` from a Content-Type value. Handles
