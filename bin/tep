@@ -1487,7 +1487,7 @@ def handle_top_call(node, routes, websockets, mcp_tools, mcp_resources, filters,
         # same way inlined_tep_library does for the wholesale core -- the
         # opt-in splice bypasses that pass, so without this the literal
         # placeholders reach the linker ("ld: cannot find @TEP_PG_O@").
-        tep_ext_subs.each { |placeholder, value| pgtext = pgtext.gsub(placeholder, value) }
+        pgtext = apply_ext_subs(pgtext)
         passthrough << "# --- inlined opt-in require #{pg_arg.unescaped.inspect} (pg.rb) ---"
         passthrough << pgtext
       end
@@ -2096,10 +2096,24 @@ def inlined_tep_library
   # behavior as before -- the Makefile exports TEP_SPHTTP_O /
   # TEP_SQLITE_O / TEP_PG_O / TEP_PG_CFLAGS / TEP_PG_LIBS, which this
   # reads, defaulting `.o` paths to the entry's source-derived path.
+  apply_ext_subs(combined)
+end
+
+# Helper objects go to spinel as `--link` args rather than inside
+# ffi_cflags: only then does spinel swap in `<stem>_mt.o` for a program
+# that uses threads.
+TEP_LINK_OBJECTS = []
+
+def apply_ext_subs(text)
   tep_ext_subs.each do |placeholder, value|
-    combined = combined.gsub(placeholder, value)
+    next unless text.include?(placeholder)
+    if value.end_with?(".o")
+      TEP_LINK_OBJECTS << value unless TEP_LINK_OBJECTS.include?(value)
+      value = placeholder.sub(/_UNSET\z/, "_LINKED")
+    end
+    text = text.gsub(placeholder, value)
   end
-  combined
+  text
 end
 
 # spinel_kit is a REAL dependency post tep#217 (the hand-copy is gone):
@@ -2168,6 +2182,30 @@ end
 # read-only). Returns the `.o` path, or "" for an optional ext whose system dep
 # is missing (required exts are fatal).
 def resolve_ext_o(entry, entries, env_var)
+  o = resolve_plain_ext_o(entry, entries, env_var)
+  build_mt_variant(o, entry, entries) unless o.empty?
+  o
+end
+
+# `<stem>_mt.o`: the helper built with -DSP_THREADS, so the runtime
+# globals it touches (sp_ffi_bin_len) resolve as thread-local the way
+# Spinel's threaded runtime defines them. Best effort: without it a
+# threaded program links the plain object.
+def build_mt_variant(o, entry, entries)
+  src = File.expand_path(entry["source"], REPO_ROOT)
+  mt = o.sub(/\.o\z/, "_mt.o")
+  return if !File.exist?(src) || (File.exist?(mt) && File.mtime(mt) >= File.mtime(src))
+  return unless File.writable?(File.dirname(mt))
+  cflags = Array(entry["cflags"]).dup
+  entries.each do |sib|
+    next unless sib["name"] == entry["name"] && sib["pkg_config"]
+    pc = `pkg-config --cflags #{sib["pkg_config"]} 2>/dev/null`
+    cflags.concat(pc.split) if $?.success?
+  end
+  system(ENV.fetch("CC", "cc"), *cflags, "-DSP_THREADS", "-ftls-model=initial-exec", "-c", src, "-o", mt, err: File::NULL)
+end
+
+def resolve_plain_ext_o(entry, entries, env_var)
   if (o = ENV[env_var]) && !o.empty?
     return o if File.exist?(o)
   end
@@ -2415,6 +2453,7 @@ def cmd_build(args)
     warn "tep: applying #{flags_path}" unless ENV["TEP_QUIET"]
   end
 
+  TEP_LINK_OBJECTS.each { |o| spinel_args << "--link" << o }
   spinel_args << "-c" if c_only
   warn "tep: building -> #{out_path}" unless ENV["TEP_QUIET"]
   warn "tep: spinel argv: #{spinel_args.inspect}" if ENV["TEP_DEBUG"]
