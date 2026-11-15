@@ -40,6 +40,7 @@ module Tep
     def headers: () -> Hash[String, String]
     def body: () -> String
     def host: () -> String
+    def ip: () -> String
     def user_agent: () -> String
     def referer: () -> String
     def referrer: () -> String   # spelling alias
