@@ -729,13 +729,28 @@ int sphttp_write_some(int fd, const char *s, int offset) {
 
 /* Read from `fd` until EOF (peer close) or `max_bytes`, whichever
  * comes first. Used by Tep::Http for the HTTP/1.0 + Connection:
- * close response shape. Returns the bytes in a static buffer
- * (length encoded as the C strlen, which is fine because HTTP
- * responses don't carry NUL bytes in their headers/body for the
- * formats this client targets). */
-static char sphttp_recv_all_buf[SPHTTP_BUFSIZE];
+ * close response shape. Returns the bytes in a heap buffer kept per
+ * thread (length encoded in sp_ffi_bin_len, binary safe). */
+/* Grows to the response (up to SPHTTP_RESP_MAX) and is thread-local in
+ * the threaded runtime: Tep::Http caps responses per call, and a static
+ * SPHTTP_BUFSIZE buffer truncated anything past 64 KiB (an API payload,
+ * an image, a big locale file). Spinel's own response-size limit is
+ * SPHTTP_RESP_MAX, so nothing larger is asked for. */
+#ifdef SP_THREADS
+static _Thread_local char *sphttp_recv_all_buf = NULL;
+static _Thread_local int sphttp_recv_all_cap = 0;
+#else
+static char *sphttp_recv_all_buf = NULL;
+static int sphttp_recv_all_cap = 0;
+#endif
 const char *sphttp_recv_all(int fd, int max_bytes) {
-    if (max_bytes <= 0 || max_bytes >= SPHTTP_BUFSIZE) max_bytes = SPHTTP_BUFSIZE - 1;
+    if (max_bytes <= 0 || max_bytes > SPHTTP_RESP_MAX) max_bytes = SPHTTP_RESP_MAX;
+    if (max_bytes + 1 > sphttp_recv_all_cap) {
+        char *grown = (char *)realloc(sphttp_recv_all_buf, (size_t)max_bytes + 1);
+        if (!grown) return "";
+        sphttp_recv_all_buf = grown;
+        sphttp_recv_all_cap = max_bytes + 1;
+    }
     SSL *ssl = sphttp_ssl_for(fd);
     int total = 0;
     while (total < max_bytes) {

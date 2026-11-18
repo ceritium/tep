@@ -109,10 +109,10 @@ module Tep
     COOP_RECV_TIMEOUT = 30
 
     # Hard cap on total response bytes accumulated by the cooperative
-    # path. Mirrors sphttp_recv_all's static-buffer cap (~64 KiB) so
-    # the two paths impose the same upper bound. Bigger responses
-    # need streaming, which v1 doesn't ship.
-    COOP_RESPONSE_MAX = 65535
+    # path. sphttp_recv_all (the blocking path) answers up to
+    # SPHTTP_RESP_MAX (4 MiB), so the two paths impose the same bound;
+    # bigger responses still need streaming, which v1 doesn't ship.
+    COOP_RESPONSE_MAX = 4 * 1024 * 1024
 
     # Recv timeout (ms) on pooled keep-alive sockets. Bounds a response
     # read so a no-Content-Length / chunked keep-alive upstream can't
